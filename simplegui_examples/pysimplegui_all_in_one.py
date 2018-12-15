@@ -20,11 +20,29 @@ layout = [[sg.Text('All graphic widgets in one window!', size=(30, 1), font=("He
  sg.FolderBrowse()],
 [sg.Submit(), sg.Cancel(), sg.Button('Customized', button_color=('white', 'green'))]]
 
-window = sg.Window("title").Layout(layout)
+song_name = "Song Name"
+
+other_layout = [
+            [sg.Text("Music Player", size=(15, 1), font=("Helvetica", 25))],
+            [sg.Listbox(values=["Song1", "song2", "Song with a really long name to see how it displays"], size=(15, 20), bind_return_key=True),
+             # sg.Image(),
+             sg.Listbox(values=["Playlist1", "Playlist2"], size=(15, 20), bind_return_key=True)],
+            [sg.Text(song_name, key="Song Name")],
+            [sg.Button("Play"), sg.Button("Pause"), sg.Button("Next")]
+        ]
+
+
+# window = sg.Window("title").Layout(layout)
+window = sg.Window("title").Layout(other_layout)
 
 while True:
     event, values = window.Read()
     if event is not None:
+        print(event, values)
+        if event == "Next":
+            song_name = "New Song"
+            print("Updating song name")
+            window.FindElement("Song Name").Update(song_name)
         if type(event) == int:
             print(values[event])
         else:
