@@ -11,6 +11,8 @@ class MusicPlayer:
         self.api = Mobileclient()
         print("logging in")
         self.api.oauth_login(device_id, token)
+        print("loading all songs")
+        self.all_songs = self.api.get_all_songs()
         print("loading playlists")
         self.all_playlists = self.api.get_all_user_playlist_contents()
         self.all_playlist_names = {}
@@ -24,19 +26,20 @@ class MusicPlayer:
         self.track_number = 0
         self.playlists = []
 
-        # need a better way to do this
-        self.test_list()
-        self.load_track()
+        # Get playlists, songs from the first playlist, and load the first song
         self.get_playlists()
+        self.get_songs_from_playlist(self.playlists[0])
+        self.song = self.track_list[self.track_number]["trackId"]
+        self.load_track()
 
         # GUI initialization
         print("creating window")
         self.song = ""
         self.player_layout = [
             [sg.Text("Music Player", size=(15, 1), font=("Helvetica", 25))],
-            [sg.Listbox(values=self.titles, size=(15, 20), bind_return_key=True, key="_Tracks_"),
+            [sg.Listbox(values=self.playlists, size=(15, 20), bind_return_key=True, key="_playlists_"),
              # sg.Image(),
-             sg.Listbox(values=self.playlists, size=(15, 20), bind_return_key=True, key="_playlists_")],
+             sg.Listbox(values=self.titles, size=(15, 20), bind_return_key=True, key="_Tracks_")],
             [sg.Text(self.song, key="Song Name")],
             [sg.Button("Play"), sg.Button("Pause"), sg.Button("Next")]
         ]
@@ -44,21 +47,17 @@ class MusicPlayer:
         self.title = "Music Player"
         self.window = sg.Window(self.title).Layout(self.player_layout)
 
-    def test_list(self):
-        print("Loading Test method")
-        self.get_songs_from_playlist("nin")
-        # for item in self.track_list:
-        #     print(item)
-        self.song = self.track_list[self.track_number]["trackId"]
-        self.download_song()
-
     def get_playlists(self):
         data = self.api.get_all_playlists()
         self.playlists = []
         for playlist in data:
-            if not playlist['deleted']:
-                self.playlists.append(playlist['name'])
+            if not playlist['deleted']:                self.playlists.append(playlist['name'])
         print(self.playlists)
+
+    def change_playlists(self, name):
+        for pos, title in enumerate(self.playlists):
+            if title == name:
+                self.get_songs_from_playlist(self.playlists[pos])
 
     def get_songs_from_playlist(self, name):
         print("Obtaining track list")
@@ -67,8 +66,15 @@ class MusicPlayer:
             for playlist in self.all_playlists:
                 if playlist["name"] == name:
                     for track in playlist["tracks"]:
-                        if track["source"] == "2":
-                            tracks.append(track)
+                        tracks.append(track)
+                        # if track["source"] == "2":
+                        #     tracks.append(track)
+                        # else:
+                        #     for song in self.all_songs:
+                        #         if song["id"] == track["id"]:
+                        #             tracks.append(song["title"])
+                        #             print(song["title"])
+                        #     # print(track)
                     break
         self.track_list = tracks
         self.get_playlist_song_titles()
@@ -77,9 +83,24 @@ class MusicPlayer:
         print("Getting playlist song titles")
         titles = []
         for song in self.track_list:
-            titles.append(song["track"]["title"])
+            if song["source"] == "2":
+                titles.append(song["track"]["title"])
+            else:
+                for track in self.all_songs:
+                    if track["id"] == song["trackId"]:
+                        print("match found")
+                        titles.append(track["title"])
+                else:
+                    print("No match found")
         print(titles)
         self.titles = titles
+
+    def get_song_position_from_title(self, title):
+        for pos, name in enumerate(self.titles):
+            if name == title:
+                return pos
+        else:
+            print("Couldn't find song in tracks")
 
     def download_song(self):
         print("downloading song")
@@ -123,8 +144,16 @@ class MusicPlayer:
                 elif event == "Next":
                     self.next()
                 elif event == "_Tracks_":
+                    self.track_number = self.get_song_position_from_title(values[event][0])
+                    self.song = self.track_list[self.track_number]["trackId"]
+                    self.download_song()
+                    self.track_file.stop()
+                    self.load_track()
+                    self.track_file.play()
+                elif event == "_playlists_":
                     print(values[event][0])
-                    print(type(self.song))
+                    self.change_playlists(values[event][0])
+                    self.window.FindElement("_Tracks_").Update(self.titles)
                 else:
                     print(event)
             if event == "Quit" or values is None:
@@ -132,7 +161,18 @@ class MusicPlayer:
 
 
 if __name__ == "__main__":
-    with open("oauth/device_id.txt", "r") as f:
-        device_id = f.read()
-    mp = MusicPlayer(device_id, "oauth/oauth_code.txt")
-    mp.run()
+    try:
+        with open("oauth/device_id.txt", "r") as f:
+            device_id = f.read()
+        mp = MusicPlayer(device_id, "oauth/oauth_code.txt")
+        mp.run()
+    except FileNotFoundError:
+        print("Authorization Token Missing. Run login.py")
+        answer = input("Would you like to run now? y/n: ")
+        if answer == "y":
+            import login
+            with open("oauth/device_id.txt", "r") as f:
+                device_id = f.read()
+            mp = MusicPlayer(device_id, "oauth/oauth_code.txt")
+            mp.run()
+
