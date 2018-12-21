@@ -2,6 +2,7 @@ import PySimpleGUI as sg
 import vlc
 from gmusicapi import Mobileclient
 import requests
+from datetime import timedelta
 
 
 class MusicPlayer:
@@ -20,11 +21,13 @@ class MusicPlayer:
             self.all_playlist_names[playlist["name"]] = playlist["id"]
 
         # VLC initialization
-        self.track_file = None
+        self.track_file = vlc.MediaPlayer()
         self.track_list = []
         self.titles = []
         self.track_number = 0
         self.playlists = []
+        self.current_time = -1
+        self.max_time = -1
 
         # Get playlists, songs from the first playlist, and load the first song
         self.get_playlists()
@@ -37,9 +40,9 @@ class MusicPlayer:
         self.song = ""
         self.player_layout = [
             [sg.Text("Music Player", size=(15, 1), font=("Helvetica", 25))],
-            [sg.Listbox(values=self.playlists, size=(15, 20), bind_return_key=True, key="_playlists_"),
+            [sg.Listbox(values=self.playlists, size=(30, 20), bind_return_key=True, key="_playlists_"),
              # sg.Image(),
-             sg.Listbox(values=self.titles, size=(15, 20), bind_return_key=True, key="_Tracks_")],
+             sg.Listbox(values=self.titles, size=(30, 20), bind_return_key=True, key="_Tracks_")],
             [sg.Text(self.song, key="Song Name")],
             [sg.Button("Play"), sg.Button("Pause"), sg.Button("Next")]
         ]
@@ -51,7 +54,8 @@ class MusicPlayer:
         data = self.api.get_all_playlists()
         self.playlists = []
         for playlist in data:
-            if not playlist['deleted']:                self.playlists.append(playlist['name'])
+            if not playlist['deleted']:
+                self.playlists.append(playlist['name'])
         print(self.playlists)
 
     def change_playlists(self, name):
@@ -67,14 +71,6 @@ class MusicPlayer:
                 if playlist["name"] == name:
                     for track in playlist["tracks"]:
                         tracks.append(track)
-                        # if track["source"] == "2":
-                        #     tracks.append(track)
-                        # else:
-                        #     for song in self.all_songs:
-                        #         if song["id"] == track["id"]:
-                        #             tracks.append(song["title"])
-                        #             print(song["title"])
-                        #     # print(track)
                     break
         self.track_list = tracks
         self.get_playlist_song_titles()
@@ -112,6 +108,7 @@ class MusicPlayer:
     def load_track(self):
         # self.track_file = vlc.MediaPlayer(self.song)
         self.track_file = vlc.MediaPlayer("song.mp3")
+        print("Time:", self.track_file.get_length())
 
     def play(self):
         self.track_file.play()
@@ -125,18 +122,36 @@ class MusicPlayer:
     def next(self):
         self.track_number += 1
         self.song = self.track_list[self.track_number]["trackId"]
+        self.window.FindElement("_Tracks_").SetValue(self.titles[self.track_number])
         self.download_song()
         self.track_file.stop()
         self.load_track()
         self.track_file.play()
+        self.max_time = self.track_file.get_time()
 
     def run(self):
         print("launching program")
         while True:
-            event, values = self.window.Read()
+            self.current_time = self.track_file.get_time()
+            if self.max_time == -1:
+                self.max_time = self.track_file.get_length()
+            elif self.max_time == 0:
+                self.max_time = -1
+            else:
+                current = timedelta(milliseconds=self.current_time)
+                max = timedelta(milliseconds=self.max_time)
+                print("Current", current, "Max", max)
+                print(((self.current_time) / self.max_time) * 100)
+
+                if (self.current_time + 500) > self.max_time:
+                    self.next()
+
+            event, values = self.window.Read(timeout=100)
             if event is not None:
                 if event == "Play":
                     self.play()
+                    print("Max time:", self.track_file.get_length())
+                    print("Current time:", self.track_file.get_time())
                 elif event == "Stop":
                     self.stop()
                 elif event == "Pause":
