@@ -39,12 +39,14 @@ class MusicPlayer:
         print("creating window")
         self.song = ""
         self.player_layout = [
-            [sg.Text("Music Player", size=(15, 1), font=("Helvetica", 25))],
+            [sg.Text("I love you Mom!", size=(15, 1), font=("Helvetica", 25))],
             [sg.Listbox(values=self.playlists, size=(30, 20), bind_return_key=True, key="_playlists_"),
              # sg.Image(),
              sg.Listbox(values=self.titles, size=(30, 20), bind_return_key=True, key="_Tracks_")],
-            [sg.Text(self.song, key="Song Name")],
-            [sg.Button("Play"), sg.Button("Pause"), sg.Button("Next")]
+            [sg.Text("Click Play or select song", key="_SongName_", enable_events=True)],
+            [sg.Text("Volume:"), sg.Slider(range=(0, 100), orientation="h", size=(20, 15),
+                                           default_value=self.track_file.audio_get_volume(), key="_volume_"),
+             sg.Button("Play"), sg.Button("Pause"), sg.Button("Next")]
         ]
 
         self.title = "Music Player"
@@ -106,12 +108,12 @@ class MusicPlayer:
             f.write(doc.content)
 
     def load_track(self):
-        # self.track_file = vlc.MediaPlayer(self.song)
         self.track_file = vlc.MediaPlayer("song.mp3")
         print("Time:", self.track_file.get_length())
 
     def play(self):
         self.track_file.play()
+        self.window.FindElement("_SongName_").Update(value=self.titles[self.track_number])
 
     def stop(self):
         self.track_file.stop()
@@ -140,8 +142,8 @@ class MusicPlayer:
             else:
                 current = timedelta(milliseconds=self.current_time)
                 max = timedelta(milliseconds=self.max_time)
-                print("Current", current, "Max", max)
-                print(((self.current_time) / self.max_time) * 100)
+                # print("Current", current, "Max", max)
+                # print(int((self.current_time / self.max_time) * 100))
 
                 if (self.current_time + 500) > self.max_time:
                     self.next()
@@ -150,8 +152,6 @@ class MusicPlayer:
             if event is not None:
                 if event == "Play":
                     self.play()
-                    print("Max time:", self.track_file.get_length())
-                    print("Current time:", self.track_file.get_time())
                 elif event == "Stop":
                     self.stop()
                 elif event == "Pause":
@@ -164,13 +164,15 @@ class MusicPlayer:
                     self.download_song()
                     self.track_file.stop()
                     self.load_track()
-                    self.track_file.play()
+                    self.play()
                 elif event == "_playlists_":
                     print(values[event][0])
                     self.change_playlists(values[event][0])
                     self.window.FindElement("_Tracks_").Update(self.titles)
+                elif event == "_volume_":
+                    print("Volume", event, values)
                 else:
-                    print(event)
+                    self.track_file.audio_set_volume(values["_volume_"])
             if event == "Quit" or values is None:
                 break
 
@@ -186,8 +188,8 @@ if __name__ == "__main__":
         answer = input("Would you like to run now? y/n: ")
         if answer == "y":
             import login
+
             with open("oauth/device_id.txt", "r") as f:
                 device_id = f.read()
             mp = MusicPlayer(device_id, "oauth/oauth_code.txt")
             mp.run()
-
